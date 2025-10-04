@@ -1,7 +1,42 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'core/helpers/helpers.dart';
+import 'core/local_storage/local_storage.dart';
+import 'core/localization/translation_service.dart';
+import 'core/notification/messaging_config.dart';
+import 'core/service_locator/service_locator.dart';
+import 'firebase_options.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  EasyLocalization.ensureInitialized();
+  // must be changed
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await HiveServiceImpl.init();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]).then(
+        (_) {
+      runApp(LocalizationService.rootWidget(child: const MyApp()));
+
+      // Initialize Dio after the app starts
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final context = navigatorKey.currentContext;
+
+        if (context != null) {
+          await DI.execute();
+          await MessagingConfig.initFirebaseMessaging();
+          FirebaseMessaging.onBackgroundMessage(MessagingConfig.messageHandler);
+        } else {
+          loggerWarn('Navigator context is not available');
+        }
+      });
+    },
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -11,6 +46,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       title: 'Flutter Demo',
       theme: ThemeData(
         // This is the theme of your application.
@@ -123,3 +159,6 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
+GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
