@@ -21,6 +21,7 @@ mixin AppThemeData on ThemeData {
     scaffoldBackgroundColor: Colors.white,
     appBarTheme:  AppBarTheme(
         color: Colors.white,
+
         titleTextStyle: AppTextTheme.headlineLarge,
         surfaceTintColor: Colors.white,
         elevation: 0
