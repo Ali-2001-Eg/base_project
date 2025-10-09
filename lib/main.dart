@@ -1,22 +1,26 @@
+
+import 'package:base_project/core/extensions/extensions.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'core/enum/snack_bar_enum.dart';
 import 'core/helpers/helpers.dart';
 import 'core/local_storage/local_storage.dart';
 import 'core/localization/translation_service.dart';
 import 'core/notification/messaging_config.dart';
+import 'core/router/router.dart';
 import 'core/service_locator/service_locator.dart';
-import 'core/theme/theme.dart';
+import 'core/widgets/widgets.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.ensureInitialized();
-  // must be changed
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await HiveServiceImpl.init();
   SystemChrome.setPreferredOrientations([
@@ -25,7 +29,6 @@ Future<void> main() async {
         (_) {
       runApp(LocalizationService.rootWidget(child: const MyApp()));
 
-      // Initialize Dio after the app starts
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final context = navigatorKey.currentContext;
 
@@ -52,13 +55,11 @@ class MyApp extends StatelessWidget {
         minTextAdapt: true,
         splitScreenMode: true,
       builder: (context,_) {
-        return MaterialApp(
+        return AppRouter.getRootApp(
+          context: context,
           scaffoldMessengerKey: scaffoldMessengerKey,
-          title: 'Flutter Demo',
-          theme: AppThemeData.light(context),
-          home: const MyHomePage(title: 'Flutter Demo Home Page'),
         );
-      }
+      },
     );
   }
 }
@@ -83,8 +84,18 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
-
+  bool isSubmitting = false;
   void _incrementCounter() {
+    if(_counter>=10){
+      context.showTopSnackBar(
+        type: SnackBarType.error,
+        message: "Profile updated successfully!",
+      );
+      setState(() {
+        _counter = 0;
+      });
+      return;
+    }
     setState(() {
       // This call to setState tells the Flutter framework that something has
       // changed in this State, which causes it to rerun the build method below
@@ -139,6 +150,18 @@ class _MyHomePageState extends State<MyHomePage> {
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
+            Gaps.v25(),
+        CustomElevatedButton.filled(
+          context: context,
+          title: 'Reset',
+          isLoading: isSubmitting,
+          onPressed: () async {
+            setState(() => isSubmitting = true);
+            await Future.delayed(const Duration(seconds: 2));
+            _counter=0;
+            setState(() => isSubmitting = false);
+          },
+        )
           ],
         ),
       ),

@@ -1,4 +1,5 @@
 part of "extensions.dart";
+
 extension ContextExtensions on BuildContext {
   double get screenHeight => MediaQuery.of(this).size.height;
 
@@ -23,7 +24,6 @@ extension ContextExtensions on BuildContext {
       !isArabic ? TextDirection.rtl : TextDirection.ltr;
 
   FocusScopeNode get foucsScopeNode => FocusScope.of(this);
-
 
   void showErrorMessage(String message) {
     scaffoldMessengerKey.currentState?.clearSnackBars();
@@ -58,10 +58,10 @@ extension ContextExtensions on BuildContext {
   }
 
   void showSuccessMessage(
-      String message, {
-        Color color = Colors.green,
-        IconData icon = Icons.check_circle,
-      }) {
+    String message, {
+    Color color = Colors.green,
+    IconData icon = Icons.check_circle,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       scaffoldMessengerKey.currentState?.showSnackBar(
         SnackBar(
@@ -75,8 +75,7 @@ extension ContextExtensions on BuildContext {
               Expanded(
                 child: LocalizedLabel(
                   text: message,
-                  style:
-                  AppTextTheme.bodyMedium.copyWith(color: Colors.black),
+                  style: AppTextTheme.bodyMedium.copyWith(color: Colors.black),
                   textAlign: TextAlign.center,
                   maxLines: 4,
                 ),
@@ -93,7 +92,6 @@ extension ContextExtensions on BuildContext {
       );
     });
   }
-
 
   void showTapAgainToExit({
     String message = 'اضغط مرة اخرى للخروج',
@@ -180,42 +178,114 @@ extension ContextExtensions on BuildContext {
   }
 
   void showTopSnackBar({
-    required Widget child,
-    required Color backgroundColor,
-    IconData icon = Icons.error,
-    Duration duration = const Duration(seconds: 2),
+    required String message,
+    SnackBarType type = SnackBarType.info,
+    Duration duration = const Duration(seconds: 3),
   }) {
+    final overlay = Overlay.of(this);
+
+    // Define color + icon for each type
+    late final Color backgroundColor;
+    late final IconData icon;
+
+    switch (type) {
+      case SnackBarType.success:
+        backgroundColor = Colors.green;
+        icon = CupertinoIcons.check_mark_circled_solid;
+        break;
+      case SnackBarType.error:
+        backgroundColor = Colors.red;
+        icon = CupertinoIcons.exclamationmark_octagon_fill;
+        break;
+      case SnackBarType.warning:
+        backgroundColor = Colors.orange;
+        icon = CupertinoIcons.exclamationmark_triangle_fill;
+        break;
+      case SnackBarType.info:
+        backgroundColor = Colors.blue;
+        icon = CupertinoIcons.info_circle_fill;
+        break;
+    }
+
+    // Animation controller
+    final animationController = AnimationController(
+      vsync: Navigator.of(this),
+      duration: const Duration(milliseconds: 400),
+      reverseDuration: const Duration(milliseconds: 300),
+    );
+
+    final curvedAnimation =
+        CurvedAnimation(parent: animationController, curve: Curves.easeOutBack);
+
     final overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        left: 16,
-        right: 16,
-        top: MediaQuery.of(context).padding.top + 10,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(8),
+      builder: (context) => AnimatedBuilder(
+        animation: curvedAnimation,
+        builder: (context, child) {
+          final slideOffset =
+              Tween<Offset>(begin: const Offset(0, -1.0), end: Offset.zero)
+                  .animate(curvedAnimation);
+          final opacity =
+              Tween<double>(begin: 0.0, end: 1.0).animate(curvedAnimation);
+
+          return Positioned(
+            left: 16,
+            right: 16,
+            top: MediaQuery.of(context).padding.top + 10,
+            child: SlideTransition(
+              position: slideOffset,
+              child: FadeTransition(
+                opacity: opacity,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: backgroundColor.withValues(alpha: 0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(icon, color: Colors.white),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            message,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-            child: Row(
-              children: [
-                Icon(icon, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(child: child),
-              ],
-            ),
-          ),
-        ),
+          );
+        },
       ),
     );
 
-    Overlay.of(this).insert(overlayEntry);
+    // Insert overlay
+    overlay.insert(overlayEntry);
 
-    Future.delayed(duration, () {
+    // Animate in
+    animationController.forward();
+
+    // Auto remove
+    Future.delayed(duration, () async {
+      await animationController.reverse();
       overlayEntry.remove();
+      animationController.dispose();
     });
   }
-
-
 }
