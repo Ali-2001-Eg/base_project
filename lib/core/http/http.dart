@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:base_project/core/extensions/extensions.dart';
+import '../extensions/extensions.dart';
 
 import '../../main.dart';
 import '../helpers/helpers.dart';

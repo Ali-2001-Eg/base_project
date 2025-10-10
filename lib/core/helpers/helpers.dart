@@ -11,6 +11,7 @@ import '../bloc/paginated_bloc/exports.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 
+import '../enum/status.dart';
 import '../http/either.dart';
 import '../http/failure.dart';
 import '../local_storage/local_storage.dart';

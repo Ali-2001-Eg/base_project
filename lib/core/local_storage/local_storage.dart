@@ -1,6 +1,7 @@
-import 'package:base_project/features/auth/models/user_model.dart';
+
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../features/auth/models/user_model.dart';
 import '../helpers/helpers.dart';
 
 
