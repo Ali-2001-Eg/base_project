@@ -60,7 +60,7 @@ abstract final class ApiConsumer {
 
   Future<Either<Failure, Map<String, dynamic>>> uploadFile(
       String url, {
-        required FormData formData,
+        required Map<String, dynamic> formData,
         Map<String, dynamic>? queryParameters,
         Options? options,
         CancelToken? cancelToken,
@@ -78,4 +78,10 @@ abstract final class ApiConsumer {
       Future<Either<Failure, Map<String, dynamic>>> Function() apiCall, {
         int retryCount = 0,
       });
+
+  Future<Either<Failure, Map<String, dynamic>>> head(String url, {
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+  });
 }

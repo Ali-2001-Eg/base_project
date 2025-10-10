@@ -225,7 +225,7 @@ final class BaseApiConsumer implements ApiConsumer {
 
   @override
   Future<Either<Failure, Map<String, dynamic>>> uploadFile(String url,
-      {required FormData formData,
+      {required Map<String, dynamic> formData,
         Map<String, dynamic>? queryParameters,
         Options? options,
         CancelToken? cancelToken,
@@ -252,6 +252,31 @@ final class BaseApiConsumer implements ApiConsumer {
     }
   }
 
+
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> head(String url, {
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.head(
+        url,
+        queryParameters: queryParameters,
+        options: Options(headers: headers),
+        cancelToken: cancelToken,
+      );
+      return Right<Failure, Map<String, dynamic>>(
+          response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      loggerError(e.toString());
+      final failure = _handleDioError(e);
+      return Left<Failure, Map<String, dynamic>>(failure);
+    } catch (e) {
+      return Left<Failure, Map<String, dynamic>>(
+          UnknownFailure(message: 'An unexpected error occurred: $e'));
+    }
+  }
   @override
   void removeAllInterceptors() {
     _dio.options.headers.clear();

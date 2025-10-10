@@ -11,3 +11,4 @@ import 'package:dio/dio.dart';
 part 'api_consumer.dart';
 part 'base_api_consumer.dart';
 part 'handle_dio_error.dart';
+part 'endpoints.dart';

@@ -1,5 +1,5 @@
 abstract interface class Either<L, R> {
-  Either();
+  const Either();
 
   T fold<T>(T Function(L left) leftFn, T Function(R right) rightFn);
 }
@@ -7,7 +7,7 @@ abstract interface class Either<L, R> {
 class Left<L, R> extends Either<L, R> {
   final L value;
 
-  Left(this.value);
+  const Left(this.value);
 
   @override
   T fold<T>(T Function(L left) leftFn, T Function(R right) rightFn) {
@@ -18,7 +18,7 @@ class Left<L, R> extends Either<L, R> {
 class Right<L, R> extends Either<L, R> {
   final R value;
 
-  Right(this.value);
+  const Right(this.value);
 
   @override
   T fold<T>(T Function(L left) leftFn, T Function(R right) rightFn) {
