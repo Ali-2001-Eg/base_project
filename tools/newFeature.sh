@@ -9,6 +9,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Function to capitalize first letter (compatible with bash 3.2+)
+capitalize() {
+  echo "$1" | sed 's/^./\U&/'
+}
+
 print_usage() {
   cat <<'USAGE'
 Create a new feature with complete architecture setup.
@@ -79,9 +84,8 @@ if [[ -f "$ENDPOINTS_FILE" ]]; then
   if grep -q "static const String $FEATURE_NAME_LOWER" "$ENDPOINTS_FILE"; then
     log_warning "Endpoint already exists in $ENDPOINTS_FILE"
   else
-    # Add new endpoint
-    sed -i '' "/^}/i\\
-  static const String $FEATURE_NAME_LOWER = \"$ENDPOINT_PATH\";" "$ENDPOINTS_FILE"
+    # Add new endpoint (use perl for cross-platform compatibility)
+    perl -i -pe 'print "  static const String '"$FEATURE_NAME_LOWER"' = \"'"$ENDPOINT_PATH"'\";\n" if /^}/ && !$done++' "$ENDPOINTS_FILE"
     log_success "Added endpoint: $FEATURE_NAME_LOWER = \"$ENDPOINT_PATH\""
   fi
 else
@@ -219,7 +223,7 @@ for ((i=1; i<=METHOD_COUNT; i++)); do
     log_error "Method name is required"
     exit 1
   fi
-  
+
   echo "Method types:"
   echo "1) fetchData (GET with pagination)"
   echo "2) fetchResult (GET single result)"
@@ -227,7 +231,7 @@ for ((i=1; i<=METHOD_COUNT; i++)); do
   echo "4) updateData (PUT)"
   echo "5) deleteData (DELETE)"
   read -p "Choose method type (1-5): " METHOD_TYPE_CHOICE
-  
+
   case $METHOD_TYPE_CHOICE in
     1) METHOD_TYPE="fetchData" ;;
     2) METHOD_TYPE="fetchResult" ;;
@@ -236,7 +240,7 @@ for ((i=1; i<=METHOD_COUNT; i++)); do
     5) METHOD_TYPE="deleteData" ;;
     *) log_error "Invalid method type"; exit 1 ;;
   esac
-  
+
   METHODS+=("$METHOD_NAME")
   METHOD_TYPES+=("$METHOD_TYPE")
 done
@@ -254,7 +258,7 @@ EOF
 for i in "${!METHODS[@]}"; do
   method="${METHODS[$i]}"
   type="${METHOD_TYPES[$i]}"
-  
+
   if [[ "$type" == "fetchData" ]]; then
     echo "  Future<Either<Failure,List<${FEATURE_NAME_CAPITALIZED}Model>>> $method(PaginationParams params,{String? query});" >> "$DATASOURCE_FILE"
   elif [[ "$type" == "fetchResult" ]]; then
@@ -280,9 +284,9 @@ EOF
 for i in "${!METHODS[@]}"; do
   method="${METHODS[$i]}"
   type="${METHOD_TYPES[$i]}"
-  
+
   echo "  @override" >> "$DATASOURCE_FILE"
-  
+
   if [[ "$type" == "fetchData" ]]; then
     cat >> "$DATASOURCE_FILE" << EOF
   Future<Either<Failure, List<${FEATURE_NAME_CAPITALIZED}Model>>> $method(PaginationParams params, {String? query}) {
@@ -316,7 +320,7 @@ EOF
   }
 EOF
   fi
-  
+
   echo "" >> "$DATASOURCE_FILE"
 done
 
@@ -346,13 +350,14 @@ if [[ "$HAS_PAGINATION" == "true" ]]; then
   for i in "${!METHODS[@]}"; do
     method="${METHODS[$i]}"
     type="${METHOD_TYPES[$i]}"
-    
+
     if [[ "$type" == "fetchData" ]]; then
+      METHOD_CAPITALIZED=$(capitalize "$method")
       cat > "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
-part of '../../${FEATURE_NAME_LOWER}.dart';
-class ${method^}Bloc extends PaginatedBloc<${FEATURE_NAME_CAPITALIZED}Model> {
+part of '../${FEATURE_NAME_LOWER}.dart';
+class ${METHOD_CAPITALIZED}Bloc extends PaginatedBloc<${FEATURE_NAME_CAPITALIZED}Model> {
   final ${FEATURE_NAME_CAPITALIZED}DataSource _${FEATURE_NAME_LOWER}DataSource;
-  ${method^}Bloc(this._${FEATURE_NAME_LOWER}DataSource): super(fetchPage: (page,limit,query,params) => _${FEATURE_NAME_LOWER}DataSource.$method(PaginationParams(limit: limit, page: page),query: params?["query"]??""),cacheKeyBuilder: (query,_)=> "$method");
+  ${METHOD_CAPITALIZED}Bloc(this._${FEATURE_NAME_LOWER}DataSource): super(fetchPage: (page,limit,query,params) => _${FEATURE_NAME_LOWER}DataSource.$method(PaginationParams(limit: limit, page: page),query: params?["query"]??""),cacheKeyBuilder: (query,_)=> "$method");
 }
 EOF
       log_success "Created paginated BLoC: ${method}_bloc.dart"
@@ -364,43 +369,45 @@ fi
 for i in "${!METHODS[@]}"; do
   method="${METHODS[$i]}"
   type="${METHOD_TYPES[$i]}"
-  
+
   if [[ "$type" != "fetchData" ]]; then
+    METHOD_CAPITALIZED=$(capitalize "$method")
+
     # Create event file
     cat > "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart" << EOF
-part of '../../${FEATURE_NAME_LOWER}.dart';
-class ${method^}Event extends Equatable{
+part of '../${FEATURE_NAME_LOWER}.dart';
+class ${METHOD_CAPITALIZED}Event extends Equatable{
 EOF
-    
+
     if [[ "$type" == "fetchResult" || "$type" == "deleteData" ]]; then
       echo "  final int id;" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
-      echo "  const ${method^}Event({required this.id});" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
+      echo "  const ${METHOD_CAPITALIZED}Event({required this.id});" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
       echo "  @override" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
       echo "  List<Object?> get props => [id];" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
     elif [[ "$type" == "postData" || "$type" == "updateData" ]]; then
       echo "  final ${FEATURE_NAME_CAPITALIZED}Model model;" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
-      echo "  const ${method^}Event({required this.model});" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
+      echo "  const ${METHOD_CAPITALIZED}Event({required this.model});" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
       echo "  @override" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
       echo "  List<Object?> get props => [model];" >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
     fi
-    
+
     cat >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart" << EOF
 
 }
 EOF
-    
+
     # Create BLoC file
     cat > "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
-part of '../../${FEATURE_NAME_LOWER}.dart';
-class ${method^}Bloc extends Bloc<${method^}Event, BaseState<void>>{
+part of '../${FEATURE_NAME_LOWER}.dart';
+class ${METHOD_CAPITALIZED}Bloc extends Bloc<${METHOD_CAPITALIZED}Event, BaseState<void>>{
   final ${FEATURE_NAME_CAPITALIZED}DataSource _${FEATURE_NAME_LOWER}DataSource;
-  ${method^}Bloc(this._${FEATURE_NAME_LOWER}DataSource):super(BaseState<void>()){
-    on<${method^}Event>(_on${method^});
+  ${METHOD_CAPITALIZED}Bloc(this._${FEATURE_NAME_LOWER}DataSource):super(BaseState<void>()){
+    on<${METHOD_CAPITALIZED}Event>(_on${METHOD_CAPITALIZED});
   }
-  FutureOr<void> _on${method^}(${method^}Event event, Emitter<BaseState<void>> emit) async {
+  FutureOr<void> _on${METHOD_CAPITALIZED}(${METHOD_CAPITALIZED}Event event, Emitter<BaseState<void>> emit) async {
     emit(state.copyWith(status: Status.loading));
 EOF
-    
+
     if [[ "$type" == "fetchResult" ]]; then
       cat >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
     final result = await _${FEATURE_NAME_LOWER}DataSource.$method(event.id);
@@ -411,22 +418,33 @@ EOF
     );
 EOF
     else
-      cat >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
-    final result = await _${FEATURE_NAME_LOWER}DataSource.$method(${type == "deleteData" ? "event.id" : "event.model"});
+      if [[ "$type" == "deleteData" ]]; then
+        cat >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
+    final result = await _${FEATURE_NAME_LOWER}DataSource.$method(event.id);
     emit(
       result.fold(
           (leftFn) => state.copyWith(status: Status.failure, errorMessage: leftFn.message)
       , (rightFn) => state.copyWith(status: Status.success))
     );
 EOF
+      else
+        cat >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
+    final result = await _${FEATURE_NAME_LOWER}DataSource.$method(event.model);
+    emit(
+      result.fold(
+          (leftFn) => state.copyWith(status: Status.failure, errorMessage: leftFn.message)
+      , (rightFn) => state.copyWith(status: Status.success))
+    );
+EOF
+      fi
     fi
-    
+
     cat >> "lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart" << EOF
 
   }
 }
 EOF
-    
+
     log_success "Created BLoC: ${method}_bloc.dart and ${method}_event.dart"
   fi
 done
@@ -452,28 +470,133 @@ EOF
 
 # Add part files for BLoCs
 for method in "${METHODS[@]}"; do
-  echo "part 'bloc/${method}/${method}_bloc.dart';" >> "$FEATURE_FILE"
-  if [[ ! " ${METHOD_TYPES[*]} " =~ " fetchData " ]]; then
-    echo "part 'bloc/${method}/${method}_event.dart';" >> "$FEATURE_FILE"
-  fi
+  echo "part 'bloc/${method}_bloc.dart';" >> "$FEATURE_FILE"
+  # Check if this specific method is not fetchData
+  for i in "${!METHODS[@]}"; do
+    if [[ "${METHODS[$i]}" == "$method" && "${METHOD_TYPES[$i]}" != "fetchData" ]]; then
+      echo "part 'bloc/${method}_event.dart';" >> "$FEATURE_FILE"
+      break
+    fi
+  done
 done
 
 log_success "Created feature file: $FEATURE_FILE"
 
+# 5.5. Create presentation directories
+log_info "Creating presentation directories..."
+mkdir -p "lib/features/$FEATURE_NAME_LOWER/presentation/pages"
+mkdir -p "lib/features/$FEATURE_NAME_LOWER/presentation/widgets"
+
+# Create placeholder files
+cat > "lib/features/$FEATURE_NAME_LOWER/presentation/pages/${FEATURE_NAME_LOWER}_page.dart" << EOF
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';
+import 'package:base_project/core/service_locator/service_locator.dart';
+
+class ${FEATURE_NAME_CAPITALIZED}Page extends StatelessWidget {
+  const ${FEATURE_NAME_CAPITALIZED}Page({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${FEATURE_NAME_CAPITALIZED}'),
+      ),
+      body: BlocProvider(
+        create: (context) => getIt<Get${FEATURE_NAME_CAPITALIZED}Bloc>(),
+        child: const ${FEATURE_NAME_CAPITALIZED}View(),
+      ),
+    );
+  }
+}
+
+class ${FEATURE_NAME_CAPITALIZED}View extends StatelessWidget {
+  const ${FEATURE_NAME_CAPITALIZED}View({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<Get${FEATURE_NAME_CAPITALIZED}Bloc, BaseState<${FEATURE_NAME_CAPITALIZED}Model>>(
+      builder: (context, state) {
+        if (state.status == Status.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (state.status == Status.failure) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Error: \${state.errorMessage}'),
+                ElevatedButton(
+                  onPressed: () {
+                    context.read<Get${FEATURE_NAME_CAPITALIZED}Bloc>().add(
+                      LoadFirstPage<${FEATURE_NAME_CAPITALIZED}Model>(params: null, query: null),
+                    );
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        return ListView.builder(
+          itemCount: state.items.length,
+          itemBuilder: (context, index) {
+            final item = state.items[index];
+            return ListTile(
+              title: Text(item.toString()),
+              // Add more UI elements based on your model fields
+            );
+          },
+        );
+      },
+    );
+  }
+}
+EOF
+
+cat > "lib/features/$FEATURE_NAME_LOWER/presentation/widgets/${FEATURE_NAME_LOWER}_widget.dart" << EOF
+import 'package:flutter/material.dart';
+import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';
+
+class ${FEATURE_NAME_CAPITALIZED}Widget extends StatelessWidget {
+  final ${FEATURE_NAME_CAPITALIZED}Model ${FEATURE_NAME_LOWER};
+  
+  const ${FEATURE_NAME_CAPITALIZED}Widget({
+    super.key,
+    required this.${FEATURE_NAME_LOWER},
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        title: Text(${FEATURE_NAME_LOWER}.toString()),
+        // Customize based on your model fields
+        // Example: Text(${FEATURE_NAME_LOWER}.name),
+      ),
+    );
+  }
+}
+EOF
+
+log_success "Created presentation directories and files"
+
 # 6. Hive integration
 if [[ "$USE_HIVE" == "y" ]]; then
   log_info "Adding Hive integration..."
-  
+
   # Add adapter to HiveServiceImpl
   HIVE_SERVICE_FILE="lib/core/local_storage/hive_service_impl.dart"
   if [[ -f "$HIVE_SERVICE_FILE" ]]; then
-    # Add adapter registration
-    sed -i '' "/Hive.registerAdapter(ProductsModelAdapter());/a\\
-    Hive.registerAdapter(${FEATURE_NAME_CAPITALIZED}ModelAdapter());" "$HIVE_SERVICE_FILE"
-    
+    # Add adapter registration (use perl for cross-platform compatibility)
+    perl -i -pe 'print "    Hive.registerAdapter('"${FEATURE_NAME_CAPITALIZED}"'ModelAdapter());\n" if /Hive.registerAdapter\(ProductsModelAdapter\(\)\);/ && !$done++' "$HIVE_SERVICE_FILE"
+
     log_success "Added Hive adapter registration"
   fi
-  
+
   # Create paginated cache implementation
   CACHE_FILE="lib/features/$FEATURE_NAME_LOWER/data_source/${FEATURE_NAME_LOWER}_paginated_cache.dart"
   cat > "$CACHE_FILE" << EOF
@@ -500,18 +623,82 @@ class ${FEATURE_NAME_CAPITALIZED}PaginatedCache implements IPaginatedCache<${FEA
   }
 }
 EOF
-  
+
   # Add to feature file
   echo "part 'data_source/${FEATURE_NAME_LOWER}_paginated_cache.dart';" >> "$FEATURE_FILE"
-  
+
   # Add to Hive service locator
   HIVE_SERVICE_LOCATOR_FILE="lib/core/service_locator/hive_service_locator/hive_service_locator.dart"
   if [[ -f "$HIVE_SERVICE_LOCATOR_FILE" ]]; then
-    sed -i '' "/getIt.registerLazySingleton<IPaginatedCache<ProductsModel>>/a\\
-    getIt.registerLazySingleton<IPaginatedCache<${FEATURE_NAME_CAPITALIZED}Model>>(() => ${FEATURE_NAME_CAPITALIZED}PaginatedCache(getIt<HiveServiceImpl>()));" "$HIVE_SERVICE_LOCATOR_FILE"
-    
-    log_success "Added paginated cache to Hive service locator"
-  fi
+    perl -i -pe 'print "    getIt.registerLazySingleton<IPaginatedCache<'"${FEATURE_NAME_CAPITALIZED}"'Model>>(() => '"${FEATURE_NAME_CAPITALIZED}"'PaginatedCache(getIt<HiveServiceImpl>()));\n" if /getIt.registerLazySingleton<IPaginatedCache<ProductsModel>>/ && !$done++' "$HIVE_SERVICE_LOCATOR_FILE"
+
+  log_success "Added paginated cache to Hive service locator"
+  
+  # Create generated model file placeholder
+  GENERATED_MODEL_FILE="lib/features/$FEATURE_NAME_LOWER/models/${FEATURE_NAME_LOWER}_model.g.dart"
+  cat > "$GENERATED_MODEL_FILE" << EOF
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of '${FEATURE_NAME_LOWER}_model.dart';
+
+// **************************************************************************
+// TypeAdapterGenerator
+// **************************************************************************
+
+class ${FEATURE_NAME_CAPITALIZED}ModelAdapter extends TypeAdapter<${FEATURE_NAME_CAPITALIZED}Model> {
+  @override
+  final int typeId = $((RANDOM % 1000 + 100));
+
+  @override
+  ${FEATURE_NAME_CAPITALIZED}Model read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return ${FEATURE_NAME_CAPITALIZED}Model(
+EOF
+
+  # Add field assignments for generated model
+  for i in "${!MODEL_FIELDS[@]}"; do
+    field="${MODEL_FIELDS[$i]}"
+    type="${FIELD_TYPES[$i]}"
+    echo "      $field: fields[$i] as $type," >> "$GENERATED_MODEL_FILE"
+  done
+
+  cat >> "$GENERATED_MODEL_FILE" << EOF
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, ${FEATURE_NAME_CAPITALIZED}Model obj) {
+    writer
+      ..writeByte(${#MODEL_FIELDS[@]})
+EOF
+
+  # Add field writes for generated model
+  for i in "${!MODEL_FIELDS[@]}"; do
+    field="${MODEL_FIELDS[$i]}"
+    echo "      ..writeByte($i)" >> "$GENERATED_MODEL_FILE"
+    echo "      ..write(obj.$field);" >> "$GENERATED_MODEL_FILE"
+  done
+
+  cat >> "$GENERATED_MODEL_FILE" << EOF
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ${FEATURE_NAME_CAPITALIZED}ModelAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+EOF
+
+  log_success "Created generated model file: $GENERATED_MODEL_FILE"
+fi
 fi
 
 # 7. Create service locator
@@ -527,7 +714,8 @@ EOF
 
 # Add BLoC registrations
 for method in "${METHODS[@]}"; do
-  echo "    getIt.registerFactory<${method^}Bloc>(()=> ${method^}Bloc(getIt<${FEATURE_NAME_CAPITALIZED}DataSource>(),));" >> "$SERVICE_LOCATOR_FILE"
+  METHOD_CAPITALIZED=$(capitalize "$method")
+  echo "    getIt.registerFactory<${METHOD_CAPITALIZED}Bloc>(()=> ${METHOD_CAPITALIZED}Bloc(getIt<${FEATURE_NAME_CAPITALIZED}DataSource>(),));" >> "$SERVICE_LOCATOR_FILE"
 done
 
 cat >> "$SERVICE_LOCATOR_FILE" << EOF
@@ -540,24 +728,22 @@ log_success "Created service locator: $SERVICE_LOCATOR_FILE"
 # 8. Add to main service locator
 MAIN_SERVICE_LOCATOR_FILE="lib/core/service_locator/init/init.dart"
 if [[ -f "$MAIN_SERVICE_LOCATOR_FILE" ]]; then
-  sed -i '' "/await ProductsServiceLocator.execute(getIt: getIt);/a\\
-    await ${FEATURE_NAME_CAPITALIZED}ServiceLocator.execute(getIt: getIt);" "$MAIN_SERVICE_LOCATOR_FILE"
-  
+  perl -i -pe 'print "    await '"${FEATURE_NAME_CAPITALIZED}"'ServiceLocator.execute(getIt: getIt);\n" if /await ProductsServiceLocator.execute\(getIt: getIt\);/ && !$done++' "$MAIN_SERVICE_LOCATOR_FILE"
+
   log_success "Added service locator to main init"
 fi
 
 # 9. Add to service locator exports
 SERVICE_LOCATOR_EXPORTS_FILE="lib/core/service_locator/service_locator.dart"
 if [[ -f "$SERVICE_LOCATOR_EXPORTS_FILE" ]]; then
-  sed -i '' "/part 'products_service_locator\/products_service_locator.dart';/a\\
-part '${FEATURE_NAME_LOWER}_service_locator\/${FEATURE_NAME_LOWER}_service_locator.dart';" "$SERVICE_LOCATOR_EXPORTS_FILE"
-  
+  perl -i -pe 'print "part '\'''"${FEATURE_NAME_LOWER}"'_service_locator/'"${FEATURE_NAME_LOWER}"'_service_locator.dart'\'';\n" if /part '\''products_service_locator\/products_service_locator.dart'\'';/ && !$done++' "$SERVICE_LOCATOR_EXPORTS_FILE"
+
   log_success "Added to service locator exports"
 fi
 
 log_success "Feature '$FEATURE_NAME_CAPITALIZED' created successfully!"
 log_info "Next steps:"
-log_info "1. Run 'flutter packages pub run build_runner build' to generate Hive adapters"
+log_info "1. Run 'flutter packages pub run build_runner build' to generate files"
 log_info "2. Import the feature in your app: import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';"
 log_info "3. Use the BLoCs in your UI widgets"
 
@@ -567,12 +753,17 @@ echo "  - $MODEL_FILE"
 echo "  - $DATASOURCE_FILE"
 echo "  - $FEATURE_FILE"
 echo "  - $SERVICE_LOCATOR_FILE"
-for method in "${METHODS[@]}"; do
+echo "  - lib/features/$FEATURE_NAME_LOWER/presentation/pages/${FEATURE_NAME_LOWER}_page.dart"
+echo "  - lib/features/$FEATURE_NAME_LOWER/presentation/widgets/${FEATURE_NAME_LOWER}_widget.dart"
+for i in "${!METHODS[@]}"; do
+  method="${METHODS[$i]}"
+  type="${METHOD_TYPES[$i]}"
   echo "  - lib/features/$FEATURE_NAME_LOWER/bloc/${method}_bloc.dart"
-  if [[ ! " ${METHOD_TYPES[*]} " =~ " fetchData " ]]; then
+  if [[ "$type" != "fetchData" ]]; then
     echo "  - lib/features/$FEATURE_NAME_LOWER/bloc/${method}_event.dart"
   fi
 done
 if [[ "$USE_HIVE" == "y" ]]; then
   echo "  - $CACHE_FILE"
+  echo "  - $GENERATED_MODEL_FILE"
 fi

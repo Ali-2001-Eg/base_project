@@ -265,3 +265,20 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 📞 Support
 
 For questions or support, please open an issue in the repository.
+
+lib/features/{feature_name}/
+├── models/
+│   ├── {feature_name}_model.dart
+│   └── {feature_name}_model.g.dart (if Hive enabled)
+├── data_source/
+│   ├── {feature_name}_data_source.dart
+│   └── {feature_name}_paginated_cache.dart (if Hive enabled)
+├── bloc/
+│   ├── {method}_bloc.dart
+│   └── {method}_event.dart (for non-paginated methods)
+├── presentation/
+│   ├── pages/
+│   │   └── {feature_name}_page.dart
+│   └── widgets/
+│       └── {feature_name}_widget.dart
+└── {feature_name}.dart (main feature file)
