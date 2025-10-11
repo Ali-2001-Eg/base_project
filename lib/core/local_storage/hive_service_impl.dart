@@ -15,13 +15,14 @@ class HiveServiceImpl implements IUserCache,ITokenCache{
   static Box<UserModel>? _userBox;
   static Box<String>? _tokenBox;
 
-  HiveServiceImpl._();
+  const HiveServiceImpl._();
 
   static final HiveServiceImpl instance = HiveServiceImpl._();
 
   static Future<void> init() async {
     await Hive.initFlutter();
     Hive.registerAdapter(UserModelAdapter());
+    Hive.registerAdapter(ProductsModelAdapter());
     //open boxes
     _userBox = await Hive.openBox<UserModel>(userBoxName);
     _tokenBox = await Hive.openBox<String>(tokenBoxName);

@@ -210,11 +210,12 @@ class GenericDataSource {
 
   Future<Either<Failure, T>> deleteData<T>({
     required String endpoint,
+    Map<String, dynamic>? data,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
   }) async {
     final result = await _apiConsumer.delete(
-      endpoint,
+      endpoint,data: data,
       queryParameters: queryParameters,
       headers: headers,
     );
