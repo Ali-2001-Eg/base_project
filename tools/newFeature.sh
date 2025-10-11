@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 # Function to capitalize first letter (compatible with bash 3.2+)
 capitalize() {
-  echo "$1" | sed 's/^./\U&/'
+  echo "$1" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}'
 }
 
 print_usage() {
@@ -64,7 +64,7 @@ fi
 
 # Convert to proper case
 FEATURE_NAME_LOWER=$(echo "$FEATURE_NAME" | tr '[:upper:]' '[:lower:]')
-FEATURE_NAME_CAPITALIZED=$(echo "$FEATURE_NAME_LOWER" | sed 's/^./\U&/')
+FEATURE_NAME_CAPITALIZED=$(capitalize "$FEATURE_NAME_LOWER")
 FEATURE_NAME_UPPERCASE=$(echo "$FEATURE_NAME_LOWER" | tr '[:lower:]' '[:upper:]')
 
 log_info "Creating feature: $FEATURE_NAME_CAPITALIZED"
@@ -199,7 +199,7 @@ cat >> "$MODEL_FILE" << EOF
   };
 
   @override
-  List<Object?> get props => [${MODEL_FIELDS[*]}];
+  List<Object?> get props => [$(IFS=,; echo "${MODEL_FIELDS[*]}")];
 
 }
 EOF
@@ -487,106 +487,24 @@ log_info "Creating presentation directories..."
 mkdir -p "lib/features/$FEATURE_NAME_LOWER/presentation/pages"
 mkdir -p "lib/features/$FEATURE_NAME_LOWER/presentation/widgets"
 
-# Create placeholder files
-cat > "lib/features/$FEATURE_NAME_LOWER/presentation/pages/${FEATURE_NAME_LOWER}_page.dart" << EOF
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';
-import 'package:base_project/core/service_locator/service_locator.dart';
+# Create .gitkeep files to maintain directory structure
+touch "lib/features/$FEATURE_NAME_LOWER/presentation/pages/.gitkeep"
+touch "lib/features/$FEATURE_NAME_LOWER/presentation/widgets/.gitkeep"
 
-class ${FEATURE_NAME_CAPITALIZED}Page extends StatelessWidget {
-  const ${FEATURE_NAME_CAPITALIZED}Page({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${FEATURE_NAME_CAPITALIZED}'),
-      ),
-      body: BlocProvider(
-        create: (context) => getIt<Get${FEATURE_NAME_CAPITALIZED}Bloc>(),
-        child: const ${FEATURE_NAME_CAPITALIZED}View(),
-      ),
-    );
-  }
-}
-
-class ${FEATURE_NAME_CAPITALIZED}View extends StatelessWidget {
-  const ${FEATURE_NAME_CAPITALIZED}View({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<Get${FEATURE_NAME_CAPITALIZED}Bloc, BaseState<${FEATURE_NAME_CAPITALIZED}Model>>(
-      builder: (context, state) {
-        if (state.status == Status.loading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        
-        if (state.status == Status.failure) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Error: \${state.errorMessage}'),
-                ElevatedButton(
-                  onPressed: () {
-                    context.read<Get${FEATURE_NAME_CAPITALIZED}Bloc>().add(
-                      LoadFirstPage<${FEATURE_NAME_CAPITALIZED}Model>(params: null, query: null),
-                    );
-                  },
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        return ListView.builder(
-          itemCount: state.items.length,
-          itemBuilder: (context, index) {
-            final item = state.items[index];
-            return ListTile(
-              title: Text(item.toString()),
-              // Add more UI elements based on your model fields
-            );
-          },
-        );
-      },
-    );
-  }
-}
-EOF
-
-cat > "lib/features/$FEATURE_NAME_LOWER/presentation/widgets/${FEATURE_NAME_LOWER}_widget.dart" << EOF
-import 'package:flutter/material.dart';
-import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';
-
-class ${FEATURE_NAME_CAPITALIZED}Widget extends StatelessWidget {
-  final ${FEATURE_NAME_CAPITALIZED}Model ${FEATURE_NAME_LOWER};
-  
-  const ${FEATURE_NAME_CAPITALIZED}Widget({
-    super.key,
-    required this.${FEATURE_NAME_LOWER},
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        title: Text(${FEATURE_NAME_LOWER}.toString()),
-        // Customize based on your model fields
-        // Example: Text(${FEATURE_NAME_LOWER}.name),
-      ),
-    );
-  }
-}
-EOF
-
-log_success "Created presentation directories and files"
+log_success "Created empty presentation directories"
 
 # 6. Hive integration
 if [[ "$USE_HIVE" == "y" ]]; then
   log_info "Adding Hive integration..."
+
+  # Add import to local_storage.dart
+  LOCAL_STORAGE_FILE="lib/core/local_storage/local_storage.dart"
+  if [[ -f "$LOCAL_STORAGE_FILE" ]]; then
+    # Add import for the new model
+    perl -i -pe 'print "import '\''package:base_project/features/'"${FEATURE_NAME_LOWER}"'/models/'"${FEATURE_NAME_LOWER}"'_model.dart'\'';\n" if /import '\''package:base_project\/features\/products\/models\/products_model\.dart'\'';/ && !$done++' "$LOCAL_STORAGE_FILE"
+    
+    log_success "Added model import to local_storage.dart"
+  fi
 
   # Add adapter to HiveServiceImpl
   HIVE_SERVICE_FILE="lib/core/local_storage/hive_service_impl.dart"
@@ -597,35 +515,35 @@ if [[ "$USE_HIVE" == "y" ]]; then
     log_success "Added Hive adapter registration"
   fi
 
-  # Create paginated cache implementation
-  CACHE_FILE="lib/features/$FEATURE_NAME_LOWER/data_source/${FEATURE_NAME_LOWER}_paginated_cache.dart"
-  cat > "$CACHE_FILE" << EOF
-part of '../${FEATURE_NAME_LOWER}.dart';
+  # Add paginated cache implementation to paginated_cache_interface.dart
+  PAGINATED_CACHE_FILE="lib/core/local_storage/paginated_cache_interface.dart"
+  if [[ -f "$PAGINATED_CACHE_FILE" ]]; then
+    # Add the paginated cache class to the end of the file
+    cat >> "$PAGINATED_CACHE_FILE" << EOF
 
-class ${FEATURE_NAME_CAPITALIZED}PaginatedCache implements IPaginatedCache<${FEATURE_NAME_CAPITALIZED}Model> {
-  final HiveServiceImpl _hiveService;
-
-  const ${FEATURE_NAME_CAPITALIZED}PaginatedCache(this._hiveService);
-
+class ${FEATURE_NAME_CAPITALIZED}PaginatedCache extends IPaginatedCache<${FEATURE_NAME_CAPITALIZED}Model>{
+  final HiveServiceImpl hiveService;
+  const ${FEATURE_NAME_CAPITALIZED}PaginatedCache(this.hiveService);
   @override
   Future<void> cachePage(List<${FEATURE_NAME_CAPITALIZED}Model> items, {required String cacheKey}) async {
-    await _hiveService._cachePage(items, cacheKey: cacheKey);
+    hiveService._cachePage(items, cacheKey: '${FEATURE_NAME_LOWER}\$cacheKey');
   }
 
   @override
-  Future<List<${FEATURE_NAME_CAPITALIZED}Model>> getCachedPage({required String cacheKey}) async {
-    return await _hiveService._getCachedPage<${FEATURE_NAME_CAPITALIZED}Model>(cacheKey: cacheKey);
+  Future<void> clearCachedPage({required String cacheKey}) {
+    return hiveService._clearCachedPage(cacheKey: '${FEATURE_NAME_LOWER}\$cacheKey');
+
   }
 
   @override
-  Future<void> clearCachedPage({required String cacheKey}) async {
-    await _hiveService._clearCachedPage<${FEATURE_NAME_CAPITALIZED}Model>(cacheKey: cacheKey);
+  Future<List<${FEATURE_NAME_CAPITALIZED}Model>> getCachedPage({required String cacheKey}) {
+    return hiveService._getCachedPage(cacheKey: '${FEATURE_NAME_LOWER}\$cacheKey');
   }
+
 }
 EOF
-
-  # Add to feature file
-  echo "part 'data_source/${FEATURE_NAME_LOWER}_paginated_cache.dart';" >> "$FEATURE_FILE"
+    log_success "Added paginated cache to paginated_cache_interface.dart"
+  fi
 
   # Add to Hive service locator
   HIVE_SERVICE_LOCATOR_FILE="lib/core/service_locator/hive_service_locator/hive_service_locator.dart"
@@ -736,16 +654,36 @@ fi
 # 9. Add to service locator exports
 SERVICE_LOCATOR_EXPORTS_FILE="lib/core/service_locator/service_locator.dart"
 if [[ -f "$SERVICE_LOCATOR_EXPORTS_FILE" ]]; then
+  # Add import for the new model
+  perl -i -pe 'print "import '\''package:base_project/features/'"${FEATURE_NAME_LOWER}"'/models/'"${FEATURE_NAME_LOWER}"'_model.dart'\'';\n" if /import '\''package:base_project\/features\/products\/models\/products_model\.dart'\'';/ && !$done++' "$SERVICE_LOCATOR_EXPORTS_FILE"
+  
+  # Add feature import
+  perl -i -pe 'print "import '\''../../features/'"${FEATURE_NAME_LOWER}"'/'"${FEATURE_NAME_LOWER}"'.dart'\'';\n" if /import '\''..\/..\/features\/products\/products\.dart'\'';/ && !$done++' "$SERVICE_LOCATOR_EXPORTS_FILE"
+  
+  # Add part file
   perl -i -pe 'print "part '\'''"${FEATURE_NAME_LOWER}"'_service_locator/'"${FEATURE_NAME_LOWER}"'_service_locator.dart'\'';\n" if /part '\''products_service_locator\/products_service_locator.dart'\'';/ && !$done++' "$SERVICE_LOCATOR_EXPORTS_FILE"
 
   log_success "Added to service locator exports"
 fi
 
 log_success "Feature '$FEATURE_NAME_CAPITALIZED' created successfully!"
+
+# Run build_runner if Hive was enabled
+if [[ "$USE_HIVE" == "y" ]]; then
+  log_info "Running build_runner to generate Hive adapters..."
+  if flutter packages pub run build_runner build --delete-conflicting-outputs; then
+    log_success "Build runner completed successfully"
+  else
+    log_warning "Build runner failed, but feature files were created. You may need to run it manually."
+  fi
+fi
+
 log_info "Next steps:"
-log_info "1. Run 'flutter packages pub run build_runner build' to generate files"
-log_info "2. Import the feature in your app: import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';"
-log_info "3. Use the BLoCs in your UI widgets"
+log_info "1. Import the feature in your app: import 'package:base_project/features/$FEATURE_NAME_LOWER/${FEATURE_NAME_LOWER}.dart';"
+log_info "2. Use the BLoCs in your UI widgets"
+if [[ "$USE_HIVE" != "y" ]]; then
+  log_info "3. Run 'flutter packages pub run build_runner build --delete-conflicting-outputs' if you need code generation"
+fi
 
 echo ""
 log_info "Created files:"
@@ -753,8 +691,8 @@ echo "  - $MODEL_FILE"
 echo "  - $DATASOURCE_FILE"
 echo "  - $FEATURE_FILE"
 echo "  - $SERVICE_LOCATOR_FILE"
-echo "  - lib/features/$FEATURE_NAME_LOWER/presentation/pages/${FEATURE_NAME_LOWER}_page.dart"
-echo "  - lib/features/$FEATURE_NAME_LOWER/presentation/widgets/${FEATURE_NAME_LOWER}_widget.dart"
+echo "  - lib/features/$FEATURE_NAME_LOWER/presentation/pages/ (empty directory)"
+echo "  - lib/features/$FEATURE_NAME_LOWER/presentation/widgets/ (empty directory)"
 for i in "${!METHODS[@]}"; do
   method="${METHODS[$i]}"
   type="${METHOD_TYPES[$i]}"
@@ -764,6 +702,6 @@ for i in "${!METHODS[@]}"; do
   fi
 done
 if [[ "$USE_HIVE" == "y" ]]; then
-  echo "  - $CACHE_FILE"
   echo "  - $GENERATED_MODEL_FILE"
+  echo "  - Updated lib/core/local_storage/paginated_cache_interface.dart"
 fi
