@@ -15,7 +15,7 @@ class ForgetPasswordBloc extends Bloc<ForgetPasswordEvent, BaseState<void>> {
           status: Status.failure,
           errorMessage: failure.message,
           failure: failure),
-      (data) => state.copyWith(status: Status.success, data: data),
+      (data) => state.copyWith(status: Status.success),
     ));
   }
 }

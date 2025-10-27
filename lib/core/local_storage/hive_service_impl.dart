@@ -22,7 +22,6 @@ class HiveServiceImpl implements IUserCache,ITokenCache{
   static Future<void> init() async {
     await Hive.initFlutter();
     Hive.registerAdapter(UserModelAdapter());
-    Hive.registerAdapter(ProductsModelAdapter());
     //open boxes
     _userBox = await Hive.openBox<UserModel>(userBoxName);
     _tokenBox = await Hive.openBox<String>(tokenBoxName);

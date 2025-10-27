@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:base_project/core/bloc/paginated_bloc/exports.dart';
-import 'package:base_project/core/enum/status.dart';
-import 'package:base_project/core/http/either.dart';
-import 'package:base_project/core/http/failure.dart';
-import 'package:base_project/core/http/http.dart';
-import 'package:base_project/core/params/params.dart';
+import '../../core/bloc/paginated_bloc/exports.dart';
+import '../../core/enum/status.dart';
+import '../../core/http/either.dart';
+import '../../core/http/failure.dart';
+import '../../core/http/http.dart';
+import '../../core/params/params.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
